@@ -50,7 +50,7 @@ for (let i=0;i<6;i++){
   robotGroup.add(joint); jointMeshes.push(joint);
 }
 
-// RGB axes gizmo (X=green, Y=red, Z=blue), reused for every frame + the IK target
+// RGB axes gizmo (X=red, Y=green, Z=blue), reused for every frame + the IK target
 function makeAxesGizmo(len){
   const g = new THREE.Group();
   const mk = (color, dir) => {
@@ -58,9 +58,9 @@ function makeAxesGizmo(len){
     const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), dir.clone().multiplyScalar(len)]);
     return new THREE.Line(geo, mat);
   };
-  g.add(mk(0x4ddd8a, new THREE.Vector3(1,0,0))); // X = Green
-  g.add(mk(0xff5c5c, new THREE.Vector3(0,1,0))); // Y = Red
-  g.add(mk(0x4d9dff, new THREE.Vector3(0,0,1))); // Z = Blue
+  g.add(mk(0xff5c5c, new THREE.Vector3(1,0,0))); // X = red
+  g.add(mk(0x4ddd8a, new THREE.Vector3(0,1,0))); // Y = green
+  g.add(mk(0x4d9dff, new THREE.Vector3(0,0,1))); // Z = blue
   return g;
 }
 
@@ -115,11 +115,11 @@ for(let i=0;i<6;i++){
 }
 // görsel yönle eşleştirmek için. Renkler mevcut eksen kuralıyla tutarlı: X=yeşil, Y=kırmızı.
 const GROUND_AXIS_DIST = 800; // mm, zeminde ne kadar uzağa yazılsın
-const groundLabelX = makeTextSprite('+X', {color:'#4ddd8a', fontSize:90, background:'rgba(20,22,26,0.55)'});
+const groundLabelX = makeTextSprite('+X', {color:'#ff5c5c', fontSize:90, background:'rgba(20,22,26,0.55)'});
 groundLabelX.position.copy(toThree([GROUND_AXIS_DIST, 0, 0]));
 robotGroup.add(groundLabelX);
 
-const groundLabelY = makeTextSprite('+Y', {color:'#ff5c5c', fontSize:90, background:'rgba(20,22,26,0.55)'});
+const groundLabelY = makeTextSprite('+Y', {color:'#4ddd8a', fontSize:90, background:'rgba(20,22,26,0.55)'});
 groundLabelY.position.copy(toThree([0, GROUND_AXIS_DIST, 0]));
 robotGroup.add(groundLabelY)
 
