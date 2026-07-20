@@ -5,7 +5,7 @@
 // Yükleme sırası: three.js (CDN) -> utils.js -> kinematics.js -> scene.js -> robot.js -> ui.js -> main.js
 
 // ---------- App state ----------
-const params = { d1:162.5, a2:-425, a3:-392.3, d4:133.3, d5:99.6, d6:99.6 };
+const params = { d1:162.5, a2:-425, a3:-392.3, d4:133.3, d5:99.6, d6:99.6 }; //Inital Positions
 const thetasDeg = [0, 90, 0, 90, 0, 0]; // start pose, degrees
 
 // ---------- Bootstrap ----------
