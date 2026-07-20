@@ -22,7 +22,7 @@ const linkMat = new THREE.MeshStandardMaterial({color:LINK_COLOR, metalness:0.25
 const JOINT_RADII = [22, 22, 22, 22, 22, 22];
 const JOINT_LENS   = [45, 45, 45, 45, 45, 45];
 const LINK_RADII   = [22, 22, 22, 22, 22, 22];
-const HOUSING_CAP_COLOR = 0x35c9d1; // UR e-series style cyan/teal accent band
+const HOUSING_CAP_COLOR = 0x35c9d1; 
 const housingBodyMat = new THREE.MeshStandardMaterial({color:0x8a8f99, metalness:0.35, roughness:0.45});
 const housingCapMat = new THREE.MeshStandardMaterial({color:HOUSING_CAP_COLOR, metalness:0.2, roughness:0.4});
 
@@ -119,8 +119,7 @@ for(let i=0;i<6;i++){
   robotGroup.add(s);
   linkLabels.push(s);
 }
-const baseLabel = makeTextSprite('Base', {color:'#6b7180', fontSize:32});
-robotGroup.add(baseLabel);
+
 
 // Tool (TCP) frame reuses frameAxisGizmos[6] — no separate duplicate gizmo needed.
 const toolFrameGizmo = frameAxisGizmos[6];
@@ -163,7 +162,6 @@ function applyViewState(){
   toolFrameGizmo.visible = viewState.toolFrame;
   jointLabels.forEach(s=> s.visible = viewState.jointLabels);
   linkLabels.forEach(s=> s.visible = viewState.linkLabels);
-  baseLabel.visible = viewState.jointLabels;
   workspaceSphere.visible = viewState.workspace;
   tcpPathLine.visible = viewState.tcpPath;
 }
@@ -253,7 +251,7 @@ function updateFK(){
   // instead of straight rods meeting at featureless ball joints.
   for (let i=0;i<6;i++){
     const Rprev = frameRotationBefore(i, cum);
-    orientJointHousing(jointMeshes[i], Rprev, toThree(pts[i+1]));
+    orientJointHousing(jointMeshes[i], Rprev, toThree(pts[i]));
   }
 
   // per-frame axis gizmos: frame0 = base (identity), frame i = T0i for i=1..6
@@ -265,8 +263,7 @@ function updateFK(){
   }
 
   // labels
-  baseLabel.position.copy(toThree(pts[0])).add(new THREE.Vector3(0,45,0));
-  for(let i=0;i<6;i++) jointLabels[i].position.copy(toThree(pts[i+1])).add(new THREE.Vector3(0,34,0));
+  for(let i=0;i<6;i++) jointLabels[i].position.copy(toThree(pts[i])).add(new THREE.Vector3(0,34,0));
   for(let i=0;i<6;i++){
     const mid = [ (pts[i][0]+pts[i+1][0])/2, (pts[i][1]+pts[i+1][1])/2, (pts[i][2]+pts[i+1][2])/2 ];
     linkLabels[i].position.copy(toThree(mid)).add(new THREE.Vector3(0,22,0));
