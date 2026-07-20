@@ -115,11 +115,11 @@ for(let i=0;i<6;i++){
 }
 // görsel yönle eşleştirmek için. Renkler mevcut eksen kuralıyla tutarlı: X=yeşil, Y=kırmızı.
 const GROUND_AXIS_DIST = 800; // mm, zeminde ne kadar uzağa yazılsın
-const groundLabelX = makeTextSprite('+X', {color:'#ff5c5c', fontSize:90, background:'rgba(20,22,26,0.55)'});
+const groundLabelX = makeTextSprite('+X', {color:'#ff5c5c', fontSize:150, background:'rgba(20,22,26,0.55)'});
 groundLabelX.position.copy(toThree([GROUND_AXIS_DIST, 0, 0]));
 robotGroup.add(groundLabelX);
 
-const groundLabelY = makeTextSprite('+Y', {color:'#4ddd8a', fontSize:90, background:'rgba(20,22,26,0.55)'});
+const groundLabelY = makeTextSprite('+Y', {color:'#4ddd8a', fontSize:150, background:'rgba(20,22,26,0.55)'});
 groundLabelY.position.copy(toThree([0, GROUND_AXIS_DIST, 0]));
 robotGroup.add(groundLabelY)
 
