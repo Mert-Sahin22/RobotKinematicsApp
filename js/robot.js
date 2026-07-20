@@ -113,6 +113,16 @@ for(let i=0;i<6;i++){
   robotGroup.add(s);
   jointLabels.push(s);
 }
+// görsel yönle eşleştirmek için. Renkler mevcut eksen kuralıyla tutarlı: X=yeşil, Y=kırmızı.
+const GROUND_AXIS_DIST = 800; // mm, zeminde ne kadar uzağa yazılsın
+const groundLabelX = makeTextSprite('+X', {color:'#4ddd8a', fontSize:90, background:'rgba(20,22,26,0.55)'});
+groundLabelX.position.copy(toThree([GROUND_AXIS_DIST, 0, 0]));
+robotGroup.add(groundLabelX);
+
+const groundLabelY = makeTextSprite('+Y', {color:'#ff5c5c', fontSize:90, background:'rgba(20,22,26,0.55)'});
+groundLabelY.position.copy(toThree([0, GROUND_AXIS_DIST, 0]));
+robotGroup.add(groundLabelY)
+
 const linkLabels = [];
 for(let i=0;i<6;i++){
   const s = makeTextSprite('L'+(i+1), {color:'#a8adb8', background:'rgba(20,22,26,0.6)', fontSize:32});
