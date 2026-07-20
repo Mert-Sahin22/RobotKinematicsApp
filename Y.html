@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>6 Eksenli Cobot - Ileri &amp; Ters Kinematik</title>
+<style>
+  :root{
+    --bg0:#14161a; --bg1:#1c1f26; --bg2:#252932; --border:#343946;
+    --text0:#eceef2; --text1:#a8adb8; --text2:#6b7180;
+    --accent:#4d9dff; --accent-dim:#2c4f7c; --warn:#ff8a5c; --bad:#ff5c5c; --ok:#4ddd8a;
+    --mono: 'SF Mono', 'Consolas', 'Menlo', monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--bg0); color:var(--text0);
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    font-size:14px;
+  }
+  header { padding:14px 20px; border-bottom:1px solid var(--border); }
+  header h1 { font-size:16px; font-weight:600; margin:0 0 2px; }
+  header p { font-size:12.5px; color:var(--text1); margin:0; }
+
+  .params-row {
+    display:flex; flex-wrap:wrap; gap:10px; padding:10px 20px;
+    background:var(--bg1); border-bottom:1px solid var(--border); align-items:center;
+  }
+  .params-row .plabel { font-size:11.5px; color:var(--text1); }
+  .params-row .grp { display:flex; align-items:center; gap:6px; }
+  .params-row input[type=number] {
+    width:74px; background:var(--bg2); border:1px solid var(--border); color:var(--text0);
+    border-radius:4px; padding:4px 6px; font-family:var(--mono); font-size:12.5px;
+  }
+  .params-row .unit { color:var(--text2); font-size:11px; }
+
+  .main { display:flex; height: calc(100vh - 96px); min-height:560px; }
+  .viewport { flex:1 1 60%; position:relative; background:radial-gradient(ellipse at center, #1a1d24 0%, #101216 100%); }
+  #canvas-holder { width:100%; height:100%; }
+  .hud {
+    position:absolute; top:12px; left:12px; background:rgba(20,22,26,0.85);
+    border:1px solid var(--border); border-radius:6px; padding:10px 12px;
+    font-family:var(--mono); font-size:11.5px; color:var(--text1); line-height:1.7;
+    pointer-events:none; max-width:280px;
+  }
+  .hud b { color:var(--text0); }
+  .hint { position:absolute; bottom:10px; left:12px; font-size:11px; color:var(--text2); }
+  .legend { position:absolute; top:12px; right:12px; font-size:11px; color:var(--text2); text-align:right; line-height:1.8;}
+  .legend span.sw { display:inline-block; width:9px; height:9px; border-radius:2px; margin-left:5px; vertical-align:middle;}
+
+  .panel { flex:0 0 380px; border-left:1px solid var(--border); background:var(--bg1); display:flex; flex-direction:column; }
+  .tabs { display:flex; border-bottom:1px solid var(--border); }
+  .tab-btn {
+    flex:1; padding:10px; background:none; border:none; color:var(--text1);
+    font-size:12.5px; cursor:pointer; border-bottom:2px solid transparent;
+  }
+  .tab-btn.active { color:var(--text0); border-bottom-color:var(--accent); }
+  .tab-content { flex:1; overflow-y:auto; padding:16px; display:none; }
+  .tab-content.active { display:block; }
+
+  .joint-row { margin-bottom:14px; }
+  .joint-row .jhead { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+  .joint-row label { font-size:12.5px; color:var(--text1); }
+  .joint-row input[type=number] {
+    width:60px; background:var(--bg2); border:1px solid var(--border); color:var(--text0);
+    border-radius:4px; padding:3px 5px; font-family:var(--mono); font-size:12px; text-align:right;
+  }
+  input[type=range] { width:100%; accent-color: var(--accent); }
+
+  .btn {
+    background:var(--bg2); border:1px solid var(--border); color:var(--text0);
+    padding:7px 12px; border-radius:5px; font-size:12.5px; cursor:pointer; width:100%;
+  }
+  .btn:hover { border-color:var(--accent); }
+  .btn.primary { background:var(--accent-dim); border-color:var(--accent); }
+  .btn.small { width:auto; padding:4px 9px; font-size:11.5px; }
+
+  .readout {
+    margin-top:14px; padding:10px 12px; background:var(--bg2); border-radius:6px;
+    font-family:var(--mono); font-size:11.5px; color:var(--text1); line-height:1.8;
+  }
+  .readout b { color:var(--text0); }
+  .row2 { display:flex; gap:8px; margin-bottom:10px; }
+  .row2 .field { flex:1; }
+  .row2 label { font-size:11px; color:var(--text2); display:block; margin-bottom:3px; }
+  .row2 input[type=number] {
+    width:100%; background:var(--bg2); border:1px solid var(--border); color:var(--text0);
+    border-radius:4px; padding:5px 6px; font-family:var(--mono); font-size:12px;
+  }
+  .sec-title { font-size:11.5px; color:var(--text2); text-transform:uppercase; letter-spacing:0.04em; margin:16px 0 8px; }
+  .msg { padding:8px 10px; border-radius:5px; font-size:12px; margin-top:10px; display:none; }
+  .msg.bad { background:rgba(255,92,92,0.12); color:var(--bad); border:1px solid rgba(255,92,92,0.3); display:block; }
+
+  .sol-card {
+    border:1px solid var(--border); border-radius:6px; padding:9px 10px; margin-bottom:8px; background:var(--bg2);
+  }
+  .sol-card .sh { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .sol-card .tag { font-size:11px; color:var(--text1); }
+  .sol-card .tag b { color: var(--text0); }
+  .sol-card .th-vals { font-family:var(--mono); font-size:11px; color:var(--text1); margin-bottom:7px; }
+  .sol-card.invalid { opacity:0.55; }
+  .sol-card.warn { border-color:var(--warn); }
+  .status-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; }
+
+  .chk-row {
+    display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text1);
+    margin-bottom:11px; cursor:pointer; user-select:none;
+  }
+  .chk-row input[type=checkbox] { accent-color:var(--accent); width:14px; height:14px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>6 eksenli cobot &mdash; ileri ve ters kinematik</h1>
+  <p>Standart DH parametreleri (θ, d, a, α) &middot; UR tarzı yapı: 2 paralel eksen + ofsetli bilek</p>
+</header>
+
+<div class="params-row" id="params-row"></div>
+
+<div class="main">
+  <div class="viewport">
+    <div id="canvas-holder"></div>
+    <div class="hud" id="hud"></div>
+    <div class="legend">
+      Uç Efektör <span class="sw" style="background:#4d9dff"></span><br>
+      IK hedefi <span class="sw" style="background:#ff5c5c"></span><br>
+      Eksen <span class="sw" style="background:#ff5c5c"></span> X
+    <span class="sw" style="background:#4ddd8a"></span> Y
+    <span class="sw" style="background:#4d9dff"></span> Z
+    </div>
+    <div class="hint">Sürükle: döndür &middot; Tekerlek: yakınlaştır</div>
+  </div>
+
+  <div class="panel">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="fk">İleri kinematik</button>
+      <button class="tab-btn" data-tab="ik">Ters kinematik</button>
+      <button class="tab-btn" data-tab="view">Görünüm</button>
+    </div>
+
+    <div class="tab-content active" id="tab-fk">
+      <div id="joint-sliders"></div>
+      <button class="btn" id="reset-btn">Tüm eksenleri sıfırla</button>
+      <div class="readout" id="fk-readout"></div>
+      <button class="btn primary" id="copy-to-ik-btn" style="margin-top:8px;">Bu poza IK hedefinde bak &rarr;</button>
+    </div>
+
+    <div class="tab-content" id="tab-ik">
+      <div class="sec-title">Hedef pozisyon (mm)</div>
+      <div class="row2">
+        <div class="field"><label>px</label><input type="number" id="ik-px" value="300"></div>
+        <div class="field"><label>py</label><input type="number" id="ik-py" value="200"></div>
+        <div class="field"><label>pz</label><input type="number" id="ik-pz" value="400"></div>
+      </div>
+      <div class="sec-title">Hedef oryantasyon (derece, Rz&middot;Ry&middot;Rx)</div>
+      <div class="row2">
+        <div class="field"><label>Roll (X)</label><input type="number" id="ik-roll" value="0"></div>
+        <div class="field"><label>Pitch (Y)</label><input type="number" id="ik-pitch" value="90"></div>
+        <div class="field"><label>Yaw (Z)</label><input type="number" id="ik-yaw" value="0"></div>
+      </div>
+      <button class="btn primary" id="solve-ik-btn">Ters kinematiği çöz</button>
+      <div class="msg bad" id="ik-msg"></div>
+      <div class="sec-title" style="margin-top:16px;">Çözüm aileleri (en fazla 8)</div>
+      <div id="ik-solutions"></div>
+    </div>
+
+    <div class="tab-content" id="tab-view">
+      <div class="sec-title">Görünüm seçenekleri</div>
+      <label class="chk-row"><input type="checkbox" id="vs-grid"> Grid</label>
+      <label class="chk-row"><input type="checkbox" id="vs-jointFrames"> Eklem çerçeveleri (frame axes)</label>
+      <label class="chk-row"><input type="checkbox" id="vs-toolFrame"> Uç efektör çerçevesi</label>
+      <label class="chk-row"><input type="checkbox" id="vs-jointLabels"> Eklem etiketleri</label>
+      <label class="chk-row"><input type="checkbox" id="vs-linkLabels"> Link etiketleri</label>
+      <label class="chk-row"><input type="checkbox" id="vs-collision"> Çarpışma göstergesi</label>
+      <label class="chk-row"><input type="checkbox" id="vs-workspace"> Erişim alanı (workspace)</label>
+      <label class="chk-row"><input type="checkbox" id="vs-tcpPath"> TCP izi</label>
+      <div class="sec-title" style="margin-top:18px;">Poz durumu</div>
+      <div class="readout" id="pose-status-readout"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ================= Kinematics core (numerically verified against FK round-trip) =================
+function dh(theta, d, a, alpha) {
+  const ct = Math.cos(theta), st = Math.sin(theta);
+  const ca = Math.cos(alpha), sa = Math.sin(alpha);
+  return [
+    [ct, -st*ca,  st*sa, a*ct],
+    [st,  ct*ca, -ct*sa, a*st],
+    [0,   sa,     ca,    d],
+    [0,   0,      0,     1]
+  ];
+}
+function matmul(A,B){
+  const R=[[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,1]];
+  for(let i=0;i<4;i++) for(let j=0;j<4;j++){ let s=0; for(let k=0;k<4;k++) s+=A[i][k]*B[k][j]; R[i][j]=s; }
+  return R;
+}
+// Returns each intermediate transform T01..T06 (cumulative), for drawing joints.
+function fkChain(thetas, p){
+  const [t1,t2,t3,t4,t5,t6] = thetas;
+  const mats = [
+    dh(t1, p.d1, 0, Math.PI/2),
+    dh(t2, 0, p.a2, 0),
+    dh(t3, 0, p.a3, 0),
+    dh(t4, p.d4, 0, Math.PI/2),
+    dh(t5, p.d5, 0, -Math.PI/2),
+    dh(t6, p.d6, 0, 0)
+  ];
+  const cum = [mats[0]];
+  for (let i=1;i<6;i++) cum.push(matmul(cum[i-1], mats[i]));
+  return cum; // [T01, T02, T03, T04, T05, T06]
+}
+
+function rotFromRPY(rollDeg, pitchDeg, yawDeg){
+  const r = rollDeg*Math.PI/180, pch = pitchDeg*Math.PI/180, y = yawDeg*Math.PI/180;
+  const cr=Math.cos(r), sr=Math.sin(r), cp=Math.cos(pch), sp=Math.sin(pch), cy=Math.cos(y), sy=Math.sin(y);
+  // R = Rz(y) * Ry(p) * Rx(r)
+  return [
+    [cy*cp, cy*sp*sr - sy*cr, cy*sp*cr + sy*sr],
+    [sy*cp, sy*sp*sr + cy*cr, sy*sp*cr - cy*sr],
+    [-sp,   cp*sr,            cp*cr]
+  ];
+}
+function rpyFromRot(R){
+  const pitch = Math.atan2(-R[2][0], Math.sqrt(R[0][0]**2 + R[1][0]**2));
+  const yaw = Math.atan2(R[1][0], R[0][0]);
+  const roll = Math.atan2(R[2][1], R[2][2]);
+  return [roll*180/Math.PI, pitch*180/Math.PI, yaw*180/Math.PI];
+}
+
+// Analytic IK. branch = {shoulder, wrist, elbow} each +-1. Returns {thetas:[...]} or {error:'...'}
+function ik(R, pxyz, p, branch){
+  const [px,py,pz] = pxyz;
+  const r11=R[0][0], r12=R[0][1], r13=R[0][2];
+  const r21=R[1][0], r22=R[1][1], r23=R[1][2];
+  const r31=R[2][0], r32=R[2][1], r33=R[2][2];
+  const {d1,a2,a3,d4,d5,d6} = p;
+
+  if (Math.abs(d6) < 1e-9 || Math.abs(a2) < 1e-9 || Math.abs(a3) < 1e-9)
+    return {error:'d6, a2 ve a3 sıfırdan farklı olmalı.'};
+
+  const p05x = px - d6*r13;
+  const p05y = py - d6*r23;
+  const Rxy = Math.sqrt(p05x*p05x + p05y*p05y);
+  const ratio1 = d4 / Rxy;
+  if (!isFinite(ratio1) || Math.abs(ratio1) > 1) return {error:'Hedef, bilek ofseti (d4) nedeniyle erişilemez.'};
+  const th1 = Math.atan2(p05y, p05x) + branch.shoulder * Math.acos(ratio1) + Math.PI/2;
+  const s1 = Math.sin(th1), c1 = Math.cos(th1);
+
+  const c5 = (px*s1 - py*c1 - d4) / d6;
+  if (Math.abs(c5) > 1) return {error:'Hedef oryantasyon bu pozisyon için erişilemez.'};
+  const s5abs = Math.sqrt(Math.max(0,1 - c5*c5));
+  if (s5abs < 1e-6) return {error:'Bilek tekilliği (θ5 ≈ 0), θ6 belirsiz.'};
+  const s5 = branch.wrist * s5abs;
+  const th5 = Math.atan2(s5, c5);
+
+  const s6 = (r22*c1 - r12*s1) / s5;
+  const c6 = (r11*s1 - r21*c1) / s5;
+  const th6 = Math.atan2(s6, c6);
+
+  const c234 = r31*s6 + r32*c6;
+  const s234 = -r33 / s5;
+  const th234 = Math.atan2(s234, c234);
+
+  const X = px*c1 + py*s1 - d5*s234 + d6*s5*c234;
+  const Z = pz - d1 + d5*c234 + d6*s5*s234;
+
+  const D = (X*X + Z*Z - a2*a2 - a3*a3) / (2*a2*a3);
+  if (Math.abs(D) > 1) return {error:'Hedef pozisyon kolun erişim sınırları dışında.'};
+  const s3 = branch.elbow * Math.sqrt(Math.max(0,1-D*D));
+  const th3 = Math.atan2(s3, D);
+  const th2 = Math.atan2(Z, X) - Math.atan2(a3*Math.sin(th3), a2 + a3*Math.cos(th3));
+  const th4 = th234 - th2 - th3;
+
+  return {thetas:[th1,th2,th3,th4,th5,th6]};
+}
+
+function normDeg(d){ let x=((d+180)%360+360)%360-180; return x; }
+function toDeg(r){ return r*180/Math.PI; }
+function toRad(d){ return d*Math.PI/180; }
+
+// ================= Geometry helpers for validity / collision checks =================
+function v3sub(a,b){ return [a[0]-b[0], a[1]-b[1], a[2]-b[2]]; }
+function v3add(a,b){ return [a[0]+b[0], a[1]+b[1], a[2]+b[2]]; }
+function v3dot(a,b){ return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
+function v3scale(a,s){ return [a[0]*s, a[1]*s, a[2]*s]; }
+function v3dist(a,b){ const d=v3sub(a,b); return Math.sqrt(v3dot(d,d)); }
+function clamp01(v){ return Math.max(0, Math.min(1, v)); }
+
+// Closest distance between segment p1-q1 and segment p2-q2 (classic segment-segment distance).
+function segSegDistance(p1,q1,p2,q2){
+  const d1=v3sub(q1,p1), d2=v3sub(q2,p2), r=v3sub(p1,p2);
+  const a=v3dot(d1,d1), e=v3dot(d2,d2), f=v3dot(d2,r);
+  const EPS=1e-9;
+  let s, t;
+  if(a<=EPS && e<=EPS){ s=0; t=0; }
+  else if(a<=EPS){ s=0; t=clamp01(f/e); }
+  else{
+    const c=v3dot(d1,r);
+    if(e<=EPS){ t=0; s=clamp01(-c/a); }
+    else{
+      const b=v3dot(d1,d2);
+      const denom=a*e-b*b;
+      s = denom>EPS ? clamp01((b*f-c*e)/denom) : 0;
+      t = (b*s+f)/e;
+      if(t<0){ t=0; s=clamp01(-c/a); }
+      else if(t>1){ t=1; s=clamp01((b-c)/a); }
+    }
+  }
+  const c1=v3add(p1, v3scale(d1,s));
+  const c2=v3add(p2, v3scale(d2,t));
+  return v3dist(c1,c2);
+}
+
+// Physical validity check: joint limits, ground collision, elbow inversion heuristic, approximate self-collision.
+// thetasRad: [t1..t6] in radians. pts: [origin, p1..p6] robot-frame joint positions (mm).
+// This is intentionally simple (not a full mesh collision system) — it flags obviously invalid
+// poses so the FK/IK math isn't presented as if every solution were physically usable.
+function evaluatePoseValidity(thetasRad, pts){
+  // 1) joint limits
+  for(let i=0;i<6;i++){
+    const deg = normDeg(toDeg(thetasRad[i]));
+    const lim = jointLimitsDeg[i];
+    if(deg < lim[0] || deg > lim[1]){
+      return {ok:false, reason:'Eksen '+(i+1)+' limiti aşıldı: '+deg.toFixed(1)+'° (izin: '+lim[0]+'°..'+lim[1]+'°)'};
+    }
+  }
+  // 2) ground collision — no joint should dip below the floor (z=0)
+  const GROUND_EPS = 1e-6;
+  for(let i=1;i<pts.length;i++){
+    if(pts[i][2] < -GROUND_EPS){
+      return {ok:false, reason:'Zemin çarpışması: nokta '+i+' z='+pts[i][2].toFixed(1)+' mm'};
+    }
+  }
+  // 3) elbow inversion heuristic — elbow point dropping below the (fixed-height) shoulder pivot
+  const shoulder = pts[1], elbow = pts[2];
+  if(elbow[2] < shoulder[2] - GROUND_EPS){
+    return {ok:false, reason:'Dirsek ters dönmüş (elbow z < shoulder z)'};
+  }
+  // 4) approximate self-collision — closest distance between non-adjacent link segments
+  const linkSegs = [];
+  for(let i=0;i<6;i++) linkSegs.push([pts[i], pts[i+1]]);
+  const COLLISION_THRESHOLD = 60; // mm, ~ sum of link radii + safety margin
+  const pairsToCheck = [[1,3,'Link2','Link4'], [1,4,'Link2','Link5'], [2,4,'Link3','Link5']];
+  for(const [a,b,nameA,nameB] of pairsToCheck){
+    const d = segSegDistance(linkSegs[a][0], linkSegs[a][1], linkSegs[b][0], linkSegs[b][1]);
+    if(d < COLLISION_THRESHOLD){
+      return {ok:false, reason:'Öz çarpışma: '+nameA+' ↔ '+nameB+' ('+d.toFixed(0)+' mm)'};
+    }
+  }
+  return {ok:true};
+}
+
+// ---------- App state ----------
+const params = { d1:162.5, a2:425, a3:392.3, d4:133.3, d5:99.6, d6:99.6 };
+const thetasDeg = [0, 0, 90, 0, 90, 0]; // start pose, degrees
+
+// Joint limits used by evaluatePoseValidity (degrees). Loosely modeled after a typical
+// UR-style cobot: base/wrist axes free-spinning, shoulder/elbow/wrist-2 mechanically limited.
+const jointLimitsDeg = [
+  [-180, 180], // J1 taban
+  [-180, 180], // J2 omuz
+  [-180, 180], // J3 dirsek
+  [-180, 180], // J4 bilek 1
+  [-180, 180], // J5 bilek 2
+  [-180, 180], // J6 bilek 3
+];
+
+// ---------- Params UI ----------
+const paramsRow = document.getElementById('params-row');
+const paramDefs = [
+  {k:'d1', label:'d1 (taban yüksekliği)'},
+  {k:'a2', label:'a2 (üst kol uzunluğu)'},
+  {k:'a3', label:'a3 (ön kol uzunluğu)'},
+  {k:'d4', label:'d4 (bilek ofseti)'},
+  {k:'d5', label:'d5'},
+  {k:'d6', label:'d6 (uç efektör uzunluğu)'},
+];
+paramDefs.forEach(pd=>{
+  const grp = document.createElement('div'); grp.className='grp';
+  const lab = document.createElement('span'); lab.className='plabel'; lab.textContent = pd.label + ':';
+  const inp = document.createElement('input'); inp.type='number'; inp.value = params[pd.k]; inp.step='0.1';
+  inp.addEventListener('input', ()=>{ params[pd.k] = parseFloat(inp.value)||0; updateFK(); });
+  const unit = document.createElement('span'); unit.className='unit'; unit.textContent='mm';
+  grp.appendChild(lab); grp.appendChild(inp); grp.appendChild(unit);
+  paramsRow.appendChild(grp);
+});
+
+// ---------- Joint sliders UI ----------
+const slidersHolder = document.getElementById('joint-sliders');
+const sliderEls = [], numberEls = [];
+for (let i=0;i<6;i++){
+  const row = document.createElement('div'); row.className='joint-row';
+  const head = document.createElement('div'); head.className='jhead';
+  const label = document.createElement('label'); label.textContent = 'θ' + (i+1);
+  const num = document.createElement('input'); num.type='number'; num.value = thetasDeg[i]; num.step='1';
+  head.appendChild(label); head.appendChild(num);
+  const slider = document.createElement('input'); slider.type='range'; slider.min=-180; slider.max=180; slider.step=1; slider.value=thetasDeg[i];
+  row.appendChild(head); row.appendChild(slider);
+  slidersHolder.appendChild(row);
+  sliderEls.push(slider); numberEls.push(num);
+  slider.addEventListener('input', ()=>{ thetasDeg[i]=parseFloat(slider.value); num.value=slider.value; updateFK(); });
+  num.addEventListener('input', ()=>{ thetasDeg[i]=parseFloat(num.value)||0; slider.value = Math.max(-180,Math.min(180,thetasDeg[i])); updateFK(); });
+}
+document.getElementById('reset-btn').addEventListener('click', ()=>{
+  for (let i=0;i<6;i++){ thetasDeg[i]=0; sliderEls[i].value=0; numberEls[i].value=0; }
+  updateFK();
+});
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ================= Three.js scene =================
+const holder = document.getElementById('canvas-holder');
+const scene = new THREE.Scene();
+
+// All robot-frame content (links, joints, frame axes, labels, IK target, TCP path) lives under
+// one group. The DH math stays entirely in the robot's own coordinate convention; this group
+// only carries a cosmetic 180° turn so the robot faces the default camera sensibly. Nothing about
+// FK/IK computation changes — only where the assembled meshes are parented.
+const robotGroup = new THREE.Group();
+scene.add(robotGroup);
+robotGroup.rotation.y = Math.PI;
+
+const camera = new THREE.PerspectiveCamera(45, 1, 1, 10000);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(window.devicePixelRatio);
+holder.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const dl = new THREE.DirectionalLight(0xffffff, 0.8);
+dl.position.set(600, 900, 700);
+scene.add(dl);
+const dl2 = new THREE.DirectionalLight(0xffffff, 0.3);
+dl2.position.set(-500, -300, -400);
+scene.add(dl2);
+
+// ground grid — kept outside robotGroup since it's a world-space reference plane, not robot geometry
+const grid = new THREE.GridHelper(1600, 16, 0x333844, 0x22252d);
+scene.add(grid);
+
+// base
+const baseMat = new THREE.MeshStandardMaterial({color:0x3a3f4a, metalness:0.3, roughness:0.6});
+const baseMesh = new THREE.Mesh(new THREE.CylinderGeometry(70,80,40,24), baseMat);
+robotGroup.add(baseMesh);
+
+const LINK_COLOR = 0x4d9dff, LINK_BAD_COLOR = 0xff5c5c;
+const linkMat = new THREE.MeshStandardMaterial({color:LINK_COLOR, metalness:0.25, roughness:0.5});
+
+// Real cobots (UR5e etc.) don't look like thin straight rods joining ball centers — each joint is
+// a chunky cylindrical "housing" oriented along its own rotation axis, with a colored cap band,
+// and the links plug into the side of that housing rather than passing straight through its
+// center. That's what makes the arm read as curved/organic instead of a stick figure. We build
+// that housing as a small group (grey body + two colored end caps) and reuse one per joint.
+// Radii/lengths taper from base (thick) to wrist (thin), matching how a real arm looks.
+const JOINT_RADII = [22, 22, 22, 22, 22, 22];
+const JOINT_LENS   = [45, 45, 45, 45, 45, 45];
+const LINK_RADII   = [22, 22, 22, 22, 22, 22];
+const HOUSING_CAP_COLOR = 0x35c9d1; // UR e-series style cyan/teal accent band
+const housingBodyMat = new THREE.MeshStandardMaterial({color:0x8a8f99, metalness:0.35, roughness:0.45});
+const housingCapMat = new THREE.MeshStandardMaterial({color:HOUSING_CAP_COLOR, metalness:0.2, roughness:0.4});
+
+function makeJointHousing(radius, length){
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length, 28), housingBodyMat);
+  group.add(body);
+  const capLen = length * 0.22;
+  const capTop = new THREE.Mesh(new THREE.CylinderGeometry(radius*1.015, radius*1.015, capLen, 28), housingCapMat);
+  capTop.position.y = length/2 - capLen/2;
+  group.add(capTop);
+  const capBot = capTop.clone();
+  capBot.position.y = -(length/2 - capLen/2);
+  group.add(capBot);
+  group.userData.radius = radius;
+  group.userData.length = length;
+  return group;
+}
+
+const linkMeshes = [], jointMeshes = [];
+for (let i=0;i<6;i++){
+  const link = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADII[i],LINK_RADII[i],1,16), linkMat.clone());
+  robotGroup.add(link); linkMeshes.push(link);
+  const joint = makeJointHousing(JOINT_RADII[i], JOINT_LENS[i]);
+  robotGroup.add(joint); jointMeshes.push(joint);
+}
+
+// RGB axes gizmo (X=green, Y=red, Z=blue), reused for every frame + the IK target
+function makeAxesGizmo(len){
+  const g = new THREE.Group();
+  const mk = (color, dir) => {
+    const mat = new THREE.LineBasicMaterial({color});
+    const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), dir.clone().multiplyScalar(len)]);
+    return new THREE.Line(geo, mat);
+  };
+  g.add(mk(0x4ddd8a, new THREE.Vector3(1,0,0))); // X = Green
+  g.add(mk(0xff5c5c, new THREE.Vector3(0,1,0))); // Y = Red
+  g.add(mk(0x4d9dff, new THREE.Vector3(0,0,1))); // Z = Blue
+  return g;
+}
+
+// Small canvas-texture text label, billboarded via THREE.Sprite.
+function makeTextSprite(text, opts={}){
+  const fontSize = opts.fontSize || 40;
+  const color = opts.color || '#eceef2';
+  const bg = opts.background || 'rgba(20,22,26,0.78)';
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.font = 'bold '+fontSize+'px monospace';
+  const padding = 16;
+  const textWidth = ctx.measureText(text).width;
+  canvas.width = Math.ceil(textWidth + padding*2);
+  canvas.height = fontSize + padding*2;
+  ctx.font = 'bold '+fontSize+'px monospace'; // resizing the canvas resets context state
+  ctx.fillStyle = bg;
+  ctx.fillRect(0,0,canvas.width, canvas.height);
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, canvas.width/2, canvas.height/2 + 1);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({map:texture, depthTest:false, depthWrite:false, transparent:true});
+  const sprite = new THREE.Sprite(mat);
+  const worldScale = opts.worldScale || 0.55;
+  sprite.scale.set(canvas.width*worldScale*0.5, canvas.height*worldScale*0.5, 1);
+  sprite.renderOrder = 999;
+  return sprite;
+}
+
+// Per-frame axis gizmos: index 0 = base frame, index i (1..6) = frame after joint i (T0i).
+// Each is positioned/oriented directly from the DH cumulative transforms every update — a single
+// pose call per frame drives the gizmo, its joint sphere is handled separately since jointMeshes
+// already existed above; keeping them as siblings (not nested) avoids re-deriving relative
+// transforms that the existing absolute-matrix FK already computes correctly.
+const frameAxisGizmos = [];
+for(let i=0;i<=6;i++){
+  const g = makeAxesGizmo(55);
+  robotGroup.add(g);
+  frameAxisGizmos.push(g);
+}
+const IDENTITY_R = [[1,0,0],[0,1,0],[0,0,1]];
+
+// Joint labels J1..J6 and link labels L1..L6
+const jointLabels = [];
+for(let i=0;i<6;i++){
+  const s = makeTextSprite('J'+(i+1));
+  robotGroup.add(s);
+  jointLabels.push(s);
+}
+const linkLabels = [];
+for(let i=0;i<6;i++){
+  const s = makeTextSprite('L'+(i+1), {color:'#a8adb8', background:'rgba(20,22,26,0.6)', fontSize:32});
+  robotGroup.add(s);
+  linkLabels.push(s);
+}
+const baseLabel = makeTextSprite('Base', {color:'#6b7180', fontSize:32});
+robotGroup.add(baseLabel);
+
+// Tool (TCP) frame reuses frameAxisGizmos[6] — no separate duplicate gizmo needed.
+const toolFrameGizmo = frameAxisGizmos[6];
+
+// IK target gizmo/marker — lives in robotGroup too, so it stays visually aligned with the
+// robot's own TCP frame once a solution is applied.
+const targetGizmo = makeAxesGizmo(90);
+targetGizmo.visible = false;
+robotGroup.add(targetGizmo);
+const targetMarker = new THREE.Mesh(new THREE.SphereGeometry(14,12,12), new THREE.MeshBasicMaterial({color:0xff5c5c, wireframe:true}));
+targetMarker.visible = false;
+robotGroup.add(targetMarker);
+
+// Approximate reachable-workspace envelope (sphere), centered on the shoulder pivot (which sits
+// at a fixed height above the base regardless of joint1 rotation).
+let lastWorkspaceRadius = -1;
+const workspaceSphere = new THREE.Mesh(
+  new THREE.SphereGeometry(1, 24, 16),
+  new THREE.MeshBasicMaterial({color:0x4d9dff, wireframe:true, transparent:true, opacity:0.12})
+);
+robotGroup.add(workspaceSphere);
+
+// TCP trail
+const TCP_PATH_MAX_POINTS = 600;
+let tcpPathPoints = [];
+const tcpPathLine = new THREE.Line(
+  new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({color:0xff8a5c})
+);
+robotGroup.add(tcpPathLine);
+
+// ---------- View options ----------
+const viewState = {
+  grid:true, jointFrames:true, toolFrame:true, jointLabels:true, linkLabels:false,
+  collision:false, workspace:false, tcpPath:false
+};
+function applyViewState(){
+  grid.visible = viewState.grid;
+  for(let i=0;i<=5;i++) frameAxisGizmos[i].visible = viewState.jointFrames;
+  toolFrameGizmo.visible = viewState.toolFrame;
+  jointLabels.forEach(s=> s.visible = viewState.jointLabels);
+  linkLabels.forEach(s=> s.visible = viewState.linkLabels);
+  baseLabel.visible = viewState.jointLabels;
+  workspaceSphere.visible = viewState.workspace;
+  tcpPathLine.visible = viewState.tcpPath;
+}
+function bindViewCheckbox(id, key){
+  const el = document.getElementById(id);
+  el.checked = viewState[key];
+  el.addEventListener('change', ()=>{
+    viewState[key] = el.checked;
+    if(key==='tcpPath' && el.checked) tcpPathPoints = []; // start a fresh trace
+    applyViewState();
+  });
+}
+[['vs-grid','grid'],['vs-jointFrames','jointFrames'],['vs-toolFrame','toolFrame'],
+ ['vs-jointLabels','jointLabels'],['vs-linkLabels','linkLabels'],['vs-collision','collision'],
+ ['vs-workspace','workspace'],['vs-tcpPath','tcpPath']].forEach(([id,key])=>bindViewCheckbox(id,key));
+applyViewState();
+
+// camera orbit controls (hand-rolled, no addons needed)
+let camTheta = 0.9, camPhi = 1.0, camRadius = 1900, camTarget = new THREE.Vector3(0,250,0);
+function updateCamera(){
+  camPhi = Math.max(0.15, Math.min(Math.PI-0.15, camPhi));
+  camera.position.set(
+    camTarget.x + camRadius*Math.sin(camPhi)*Math.cos(camTheta),
+    camTarget.y + camRadius*Math.cos(camPhi),
+    camTarget.z + camRadius*Math.sin(camPhi)*Math.sin(camTheta)
+  );
+  camera.up.set(0,1,0);
+  camera.lookAt(camTarget);
+}
+let dragging=false, lastX=0, lastY=0;
+renderer.domElement.addEventListener('pointerdown', e=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; });
+window.addEventListener('pointerup', ()=> dragging=false);
+window.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  camTheta += (e.clientX-lastX)*0.006;
+  camPhi -= (e.clientY-lastY)*0.006;
+  lastX=e.clientX; lastY=e.clientY;
+  updateCamera();
+});
+renderer.domElement.addEventListener('wheel', e=>{
+  e.preventDefault();
+  camRadius *= (1 + e.deltaY*0.001);
+  camRadius = Math.max(300, Math.min(6000, camRadius));
+  updateCamera();
+}, {passive:false});
+
+function resize(){
+  const w = holder.clientWidth, h = holder.clientHeight;
+  renderer.setSize(w,h);
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(holder);
+
+// three.js coordinate mapping: robot uses Z-up (per DH), three.js is Y-up.
+// Swapping two axes alone flips handedness (mirrors the scene); negating the third component
+// keeps it a proper (determinant +1) right-handed remap: robot (x,y,z) -> three (x, z, -y).
+// The robotGroup's 180° Y rotation above is a separate, purely cosmetic choice (which way the
+// robot "faces" the default camera) — it does not affect this remap's correctness.
+function toThree(v){ return new THREE.Vector3(v[0], v[2], -v[1]); }
+
+function placeCylinderBetween(mesh, pA, pB, radius){
+  const a = toThree(pA), b = toThree(pB);
+  const mid = a.clone().add(b).multiplyScalar(0.5);
+  const dir = b.clone().sub(a);
+  const len = dir.length();
+  mesh.position.copy(mid);
+  mesh.geometry.dispose();
+  mesh.geometry = new THREE.CylinderGeometry(radius, radius, Math.max(len,0.01), 14);
+  if (len > 1e-6){
+    const up = new THREE.Vector3(0,1,0);
+    const axis = new THREE.Vector3().crossVectors(up, dir.clone().normalize());
+    const angle = Math.acos(Math.max(-1,Math.min(1,up.dot(dir.clone().normalize()))));
+    mesh.quaternion.setFromAxisAngle(axis.lengthSq()>1e-8 ? axis.normalize() : new THREE.Vector3(1,0,0), angle);
+  }
+}
+
+// Orients a joint housing so its cylinder axis (local Y) lines up with the joint's actual
+// rotation axis in world space. That axis is the Z axis of the DH frame *before* this joint's
+// own rotation is applied (frame i for joint i+1, with frame 0 = base/identity) — i.e. exactly
+// the axis the joint spins around. Using this (instead of just centering a sphere) is what makes
+// each joint look like a real pivoting "puck" that the neighboring links bend around.
+function orientJointHousing(group, R, posThree){
+  group.position.copy(posThree);
+  const remap = (col) => new THREE.Vector3(col[0], col[2], -col[1]);
+  const zAxis = remap([R[0][2], R[1][2], R[2][2]]).normalize();
+  const up = new THREE.Vector3(0,1,0);
+  const axis = new THREE.Vector3().crossVectors(up, zAxis);
+  const dot = Math.max(-1, Math.min(1, up.dot(zAxis)));
+  const angle = Math.acos(dot);
+  if (axis.lengthSq() > 1e-8){
+    group.quaternion.setFromAxisAngle(axis.normalize(), angle);
+  } else if (dot < 0){
+    group.quaternion.setFromAxisAngle(new THREE.Vector3(1,0,0), Math.PI);
+  } else {
+    group.quaternion.identity();
+  }
+}
+
+// Rotation of the DH frame *before* joint (i+1)'s own rotation is applied — i.e. the frame the
+// joint's rotation axis (its local Z) is expressed in. i=0 -> base (identity), i=1..5 -> rotation
+// part of cum[i-1] (T0,i).
+function frameRotationBefore(i, cum){
+  if (i === 0) return IDENTITY_R;
+  const T = cum[i-1];
+  return [[T[0][0],T[0][1],T[0][2]],[T[1][0],T[1][1],T[1][2]],[T[2][0],T[2][1],T[2][2]]];
+}
+
+function applyGizmoPose(gizmo, R, posThree){
+  gizmo.position.copy(posThree);
+  const m = new THREE.Matrix4();
+  // R is robot-frame rotation; remap basis vectors the same way as toThree (swap y/z rows)
+  const remap = (col) => new THREE.Vector3(col[0], col[2], -col[1]);
+  const xAxis = remap([R[0][0], R[1][0], R[2][0]]);
+  const yAxis = remap([R[0][1], R[1][1], R[2][1]]);
+  const zAxis = remap([R[0][2], R[1][2], R[2][2]]);
+  m.makeBasis(xAxis, yAxis, zAxis);
+  gizmo.quaternion.setFromRotationMatrix(m);
+}
+
+const hud = document.getElementById('hud');
+const fkReadout = document.getElementById('fk-readout');
+const poseStatusEl = document.getElementById('pose-status-readout');
+
+function updateFK(){
+  const thetasRad = thetasDeg.map(toRad);
+  const cum = fkChain(thetasRad, params);
+  const pts = [[0,0,0]];
+  for (const T of cum) pts.push([T[0][3], T[1][3], T[2][3]]);
+
+  // links (radius tapers from base to wrist, matching the joint housings below)
+  placeCylinderBetween(linkMeshes[0], pts[0], pts[1], LINK_RADII[0]);
+  for (let i=1;i<6;i++) placeCylinderBetween(linkMeshes[i], pts[i], pts[i+1], LINK_RADII[i]);
+  // joints — each housing is oriented along its own rotation axis (frame *before* its own
+  // rotation is applied), which is what gives the arm its curved, "real robot" silhouette
+  // instead of straight rods meeting at featureless ball joints.
+  for (let i=0;i<6;i++){
+    const Rprev = frameRotationBefore(i, cum);
+    orientJointHousing(jointMeshes[i], Rprev, toThree(pts[i+1]));
+  }
+
+  // per-frame axis gizmos: frame0 = base (identity), frame i = T0i for i=1..6
+  applyGizmoPose(frameAxisGizmos[0], IDENTITY_R, toThree(pts[0]));
+  for (let i=0;i<cum.length;i++){
+    const T = cum[i];
+    const R = [[T[0][0],T[0][1],T[0][2]],[T[1][0],T[1][1],T[1][2]],[T[2][0],T[2][1],T[2][2]]];
+    applyGizmoPose(frameAxisGizmos[i+1], R, toThree(pts[i+1]));
+  }
+
+  // labels
+  baseLabel.position.copy(toThree(pts[0])).add(new THREE.Vector3(0,45,0));
+  for(let i=0;i<6;i++) jointLabels[i].position.copy(toThree(pts[i+1])).add(new THREE.Vector3(0,34,0));
+  for(let i=0;i<6;i++){
+    const mid = [ (pts[i][0]+pts[i+1][0])/2, (pts[i][1]+pts[i+1][1])/2, (pts[i][2]+pts[i+1][2])/2 ];
+    linkLabels[i].position.copy(toThree(mid)).add(new THREE.Vector3(0,22,0));
+  }
+
+  // workspace envelope
+  const wr = params.a2 + params.a3 + params.d4 + params.d5 + params.d6;
+  if(Math.abs(wr - lastWorkspaceRadius) > 0.5){
+    workspaceSphere.geometry.dispose();
+    workspaceSphere.geometry = new THREE.SphereGeometry(Math.max(wr,1), 24, 16);
+    lastWorkspaceRadius = wr;
+  }
+  workspaceSphere.position.copy(toThree([0,0,params.d1]));
+
+  // TCP trail
+  if(viewState.tcpPath){
+    const tip = toThree(pts[6]);
+    tcpPathPoints.push(tip.x, tip.y, tip.z);
+    if(tcpPathPoints.length > TCP_PATH_MAX_POINTS*3) tcpPathPoints.splice(0, tcpPathPoints.length - TCP_PATH_MAX_POINTS*3);
+    tcpPathLine.geometry.dispose();
+    tcpPathLine.geometry = new THREE.BufferGeometry();
+    tcpPathLine.geometry.setAttribute('position', new THREE.Float32BufferAttribute(tcpPathPoints, 3));
+  }
+
+  // physical validity (joint limits / ground / elbow inversion / approximate self-collision)
+  const validity = evaluatePoseValidity(thetasRad, pts);
+  if(viewState.collision){
+    linkMeshes.forEach(m=> m.material.color.setHex(validity.ok ? LINK_COLOR : LINK_BAD_COLOR));
+  } else {
+    linkMeshes.forEach(m=> m.material.color.setHex(LINK_COLOR));
+  }
+  const statusLine = validity.ok
+    ? '<b style="color:var(--ok)">✓ Poz geçerli</b>'
+    : '<b style="color:var(--bad)">✕ Poz geçersiz</b><br>'+validity.reason;
+  poseStatusEl.innerHTML = statusLine;
+
+  const T06 = cum[5];
+  const R = [[T06[0][0],T06[0][1],T06[0][2]],[T06[1][0],T06[1][1],T06[1][2]],[T06[2][0],T06[2][1],T06[2][2]]];
+  const p = [T06[0][3], T06[1][3], T06[2][3]];
+
+  const [roll,pitch,yaw] = rpyFromRot(R);
+  hud.innerHTML =
+    '<b>Uç efektör pozu</b><br>' +
+    'x: <b>'+p[0].toFixed(1)+'</b>  y: <b>'+p[1].toFixed(1)+'</b>  z: <b>'+p[2].toFixed(1)+'</b> mm<br>' +
+    'roll: <b>'+roll.toFixed(1)+'</b>  pitch: <b>'+pitch.toFixed(1)+'</b>  yaw: <b>'+yaw.toFixed(1)+'</b> °<br>' +
+    (validity.ok ? '<b style="color:var(--ok)">Poz geçerli</b>' : '<b style="color:var(--bad)">Geçersiz:</b> '+validity.reason);
+
+  fkReadout.innerHTML =
+    'px = <b>'+p[0].toFixed(2)+'</b> mm<br>' +
+    'py = <b>'+p[1].toFixed(2)+'</b> mm<br>' +
+    'pz = <b>'+p[2].toFixed(2)+'</b> mm<br>' +
+    'roll = <b>'+roll.toFixed(2)+'</b>°  pitch = <b>'+pitch.toFixed(2)+'</b>°  yaw = <b>'+yaw.toFixed(2)+'</b>°';
+
+  window._lastPose = {p, R, roll, pitch, yaw};
+}
+
+document.getElementById('copy-to-ik-btn').addEventListener('click', ()=>{
+  const {p, roll, pitch, yaw} = window._lastPose;
+  document.getElementById('ik-px').value = p[0].toFixed(1);
+  document.getElementById('ik-py').value = p[1].toFixed(1);
+  document.getElementById('ik-pz').value = p[2].toFixed(1);
+  document.getElementById('ik-roll').value = roll.toFixed(1);
+  document.getElementById('ik-pitch').value = pitch.toFixed(1);
+  document.getElementById('ik-yaw').value = yaw.toFixed(1);
+  document.querySelector('.tab-btn[data-tab="ik"]').click();
+});
+
+// ---------- IK solve UI ----------
+const solutionsHolder = document.getElementById('ik-solutions');
+const ikMsg = document.getElementById('ik-msg');
+
+document.getElementById('solve-ik-btn').addEventListener('click', ()=>{
+  const px = parseFloat(document.getElementById('ik-px').value)||0;
+  const py = parseFloat(document.getElementById('ik-py').value)||0;
+  const pz = parseFloat(document.getElementById('ik-pz').value)||0;
+  const roll = parseFloat(document.getElementById('ik-roll').value)||0;
+  const pitch = parseFloat(document.getElementById('ik-pitch').value)||0;
+  const yaw = parseFloat(document.getElementById('ik-yaw').value)||0;
+  const R = rotFromRPY(roll, pitch, yaw);
+
+  targetMarker.visible = true; targetGizmo.visible = true;
+  targetMarker.position.copy(toThree([px,py,pz]));
+  applyGizmoPose(targetGizmo, R, toThree([px,py,pz]));
+
+  solutionsHolder.innerHTML = '';
+  ikMsg.style.display = 'none';
+  let anyValid = false;
+  const labels = { shoulder:{1:'Omuz A',[-1]:'Omuz B'}, wrist:{1:'Bilek yukarı',[-1]:'Bilek aşağı'}, elbow:{1:'Dirsek yukarı',[-1]:'Dirsek aşağı'} };
+
+  [1,-1].forEach(shoulder=>{
+    [1,-1].forEach(wrist=>{
+      [1,-1].forEach(elbow=>{
+        const res = ik(R, [px,py,pz], params, {shoulder,wrist,elbow});
+        const card = document.createElement('div');
+        const tagText = labels.shoulder[shoulder]+' &middot; '+labels.elbow[elbow]+' &middot; '+labels.wrist[wrist];
+        if (res.error){
+          card.className = 'sol-card invalid';
+          card.innerHTML = '<div class="sh"><span class="tag"><span class="status-dot" style="background:var(--bad)"></span>'+tagText+'</span></div>' +
+            '<div class="th-vals" style="color:var(--text2)">'+res.error+'</div>';
+        } else {
+          anyValid = true;
+          const degs = res.thetas.map(t=>normDeg(toDeg(t)));
+          // physical check: joint limits / ground / elbow inversion / self-collision, on top of
+          // the analytic (math-only) solution the IK solver produced
+          const cumCheck = fkChain(res.thetas, params);
+          const ptsCheck = [[0,0,0]];
+          for(const T of cumCheck) ptsCheck.push([T[0][3],T[1][3],T[2][3]]);
+          const phys = evaluatePoseValidity(res.thetas, ptsCheck);
+          card.className = 'sol-card' + (phys.ok ? '' : ' warn');
+          const dotColor = phys.ok ? 'var(--ok)' : 'var(--warn)';
+          const extra = phys.ok ? '' : '<div class="th-vals" style="color:var(--warn)">⚠ '+phys.reason+'</div>';
+          card.innerHTML = '<div class="sh"><span class="tag"><span class="status-dot" style="background:'+dotColor+'"></span>'+tagText+'</span>' +
+            '<button class="btn small apply-btn">Uygula</button></div>' +
+            '<div class="th-vals">' + degs.map((d,i)=>'θ'+(i+1)+'='+d.toFixed(1)+'°').join('  ') + '</div>' + extra;
+          card.querySelector('.apply-btn').addEventListener('click', ()=>{
+            for (let i=0;i<6;i++){
+              thetasDeg[i] = degs[i];
+              sliderEls[i].value = Math.max(-180,Math.min(180,degs[i]));
+              numberEls[i].value = degs[i].toFixed(1);
+            }
+            updateFK();
+            document.querySelector('.tab-btn[data-tab="fk"]').click();
+          });
+        }
+        solutionsHolder.appendChild(card);
+      });
+    });
+  });
+  if (!anyValid){
+    ikMsg.textContent = 'Bu poz için 8 dalın hiçbiri geçerli değil (kolun erişim sınırları dışında olabilir).';
+    ikMsg.style.display='block';
+  }
+});
+
+resize();
+updateCamera();
+updateFK();
+(function animate(){ requestAnimationFrame(animate); renderer.render(scene, camera); })();
+</script>
+</body>
+</html>
