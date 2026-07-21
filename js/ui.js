@@ -131,13 +131,14 @@ function initUI(){
               '<button class="btn small apply-btn">Uygula</button></div>' +
               '<div class="th-vals">' + degs.map((d,i)=>'θ'+(i+1)+'='+d.toFixed(1)+'°').join('  ') + '</div>' + extra;
             card.querySelector('.apply-btn').addEventListener('click', ()=>{
+              document.querySelectorAll('.sol-card').forEach(c=>c.classList.remove('selected'));
+              card.classList.add('selected');
               for (let i=0;i<6;i++){
                 thetasDeg[i] = degs[i];
                 sliderEls[i].value = Math.max(-180,Math.min(180,degs[i]));
                 numberEls[i].value = degs[i].toFixed(1);
               }
               updateFK();
-              document.querySelector('.tab-btn[data-tab="fk"]').click();
             });
           }
           solutionsHolder.appendChild(card);
